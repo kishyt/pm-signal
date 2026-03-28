@@ -246,6 +246,10 @@
     font-size: 13px; color: var(--text); line-height: 1.4;
     font-weight: 400; flex: 1;
   }
+  .flag-question a {
+    color: inherit; text-decoration: none;
+  }
+  .flag-question a:hover { color: var(--accent); }
   .flag-price {
     font-family: var(--mono); font-size: 20px; font-weight: 600;
     flex-shrink: 0; line-height: 1;
@@ -656,7 +660,7 @@ function renderFlags() {
          style="animation-delay:${i*0.03}s"
          onclick="selectFlag('${f.market_id}','${f.strategy}')">
       <div class="flag-top">
-        <div class="flag-question">${f.question}</div>
+        <div class="flag-question">${mkt?.slug ? `<a href="https://polymarket.com/event/${mkt.slug}" target="_blank" rel="noopener" onclick="event.stopPropagation()">${f.question}</a>` : f.question}</div>
         <div class="flag-price ${pc}">${(f.current_price*100).toFixed(0)}%</div>
       </div>
       <div class="flag-meta">
@@ -702,7 +706,7 @@ function renderDetail(flag, mkt) {
 
   dc.innerHTML = `
     <div class="detail-header">
-      <div class="detail-question">${flag.question}</div>
+      <div class="detail-question">${mkt?.slug ? `<a href="https://polymarket.com/event/${mkt.slug}" target="_blank" rel="noopener" style="color:inherit;text-decoration:none;" onmouseover="this.style.color='var(--accent)'" onmouseout="this.style.color=''">${flag.question} ↗</a>` : flag.question}</div>
       <div style="display:flex;gap:8px;align-items:center;margin-bottom:14px;flex-wrap:wrap">
         <span class="badge badge-${flag.strategy}">${strategyLabel(flag.strategy)}</span>
         <span class="conviction-badge conviction-${flag.conviction}">${flag.conviction} conviction</span>

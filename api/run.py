@@ -28,6 +28,7 @@ class Market:
     category: str
     tags: list
     active: bool
+    slug: str = ""
 
 @dataclass
 class BaseRatePrior:
@@ -86,6 +87,7 @@ class PolymarketClient:
                         category=m.get("category", ""),
                         tags=[t.get("label", "") for t in m.get("tags", [])],
                         active=True,
+                        slug=m.get("slug", ""),
                     ))
                 except Exception:
                     continue

@@ -501,6 +501,12 @@ function fmtVol(v) {
 function init(data) {
   state.data  = data;
   state.flags = data.flags || [];
+
+  if (data.api_status && data.api_status !== 'ok') {
+    showUnavailable(data.api_status);
+    return;
+  }
+
   updateStats();
   renderFlags();
 }
@@ -560,7 +566,11 @@ function renderFlags() {
   document.getElementById('sum-alerted').textContent  = flags.filter(f => f.price_alert).length;
 
   if (!flags.length) {
-    list.innerHTML = '<div class="empty-flags">No signals match current filters</div>';
+    const allEmpty = state.flags.length === 0;
+    list.innerHTML = allEmpty
+      ? `<div class="empty-flags">No markets resolving in the next ${state.data?.config?.window || '6–24h'} meet the gap threshold.<br>
+           <span style="opacity:0.5;font-size:10px">Try widening the window or lowering min_gap</span></div>`
+      : '<div class="empty-flags">No signals match current filters</div>';
     return;
   }
 
@@ -741,13 +751,37 @@ function runPipeline() {
   btn.textContent = 'SCANNING...';
   btn.style.color = 'var(--amber)';
   fetch('/api/run')
-    .then(r => r.json())
+    .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
     .then(data => { init(data); btn.textContent = 'RUN SCAN'; btn.style.color = ''; })
-    .catch(() => {
-      btn.textContent = 'ERROR';
-      btn.style.color = 'var(--red)';
-      setTimeout(() => { btn.textContent = 'RUN SCAN'; btn.style.color = ''; }, 2000);
+    .catch(err => {
+      showUnavailable(`Could not reach the pipeline endpoint. ${err.message}`);
+      btn.textContent = 'RUN SCAN';
+      btn.style.color = '';
     });
+}
+
+function showUnavailable(reason) {
+  const list = document.getElementById('flags-list');
+  list.innerHTML = `
+    <div style="padding:40px 24px;text-align:center">
+      <div style="font-family:var(--mono);font-size:11px;color:var(--text3);letter-spacing:.06em;margin-bottom:10px">
+        POLYMARKET API UNAVAILABLE
+      </div>
+      <div style="font-size:12px;color:var(--text2);max-width:320px;margin:0 auto;line-height:1.7">
+        ${reason}
+      </div>
+      <div style="margin-top:16px;font-size:10px;color:var(--text3)">
+        Live data cannot be displayed. Try again shortly.
+      </div>
+    </div>`;
+
+  // Zero out stats so they don't show stale values
+  ['stat-scanned','stat-flags','stat-clean','stat-alerts',
+   'sum-showing','sum-clean','sum-alerted'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.textContent = '—';
+  });
+  document.getElementById('conviction-counts').innerHTML = '';
 }
 
 // Boot
@@ -756,11 +790,10 @@ function runPipeline() {
   list.innerHTML = '<div class="loading"><div class="spinner"></div>Fetching live Polymarket data...</div>';
   try {
     const resp = await fetch('/api/run');
-    if (!resp.ok) throw new Error('HTTP ' + resp.status);
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
     init(await resp.json());
   } catch (err) {
-    list.innerHTML = `<div class="empty-flags">Pipeline error: ${err.message}<br>
-      <span style="opacity:0.5;font-size:10px">Check /api/run directly</span></div>`;
+    showUnavailable(`Could not reach the pipeline endpoint. ${err.message}`);
   }
 })();
 </script>

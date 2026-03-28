@@ -10,7 +10,7 @@ import json
 import urllib.request
 import urllib.parse
 from dataclasses import dataclass, asdict
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timezone
 from typing import Optional
 from http.server import BaseHTTPRequestHandler
 
@@ -71,6 +71,7 @@ class PolymarketClient:
     TIMEOUT = 10
 
     def fetch_markets(self, min_hours=WINDOW_MIN_HRS, max_hours=WINDOW_MAX_HRS):
+        """Returns (markets, api_status). api_status is 'ok' or an error string."""
         now = datetime.now(timezone.utc)
         markets = []
         try:
@@ -89,10 +90,10 @@ class PolymarketClient:
                 m = self._parse(item, now, min_hours, max_hours)
                 if m:
                     markets.append(m)
-        except Exception:
-            pass
+        except Exception as e:
+            return [], f"Polymarket API unavailable: {e}"
 
-        return markets if markets else self._demo(now)
+        return markets, "ok"
 
     def _parse(self, raw: dict, now: datetime, min_hours: float, max_hours: float) -> Optional[Market]:
         end_dt = self._parse_iso(raw.get("endDate", ""))
@@ -182,33 +183,6 @@ class PolymarketClient:
                 continue
         return None
 
-    def _demo(self, now: datetime) -> list:
-        """Fallback demo markets (shown when API is unreachable)."""
-        rows = [
-            # question,                                        yes,  no,  hrs,  ef,   wdays, vol,    liq
-            ("Will the Fed make a rate announcement today?",   0.28, 0.72, 4.5,  0.81,  1.0, 45000,  12000),
-            ("Will Bitcoin exceed $90,000 today?",             0.35, 0.65, 6.0,  0.75,  1.0, 120000, 35000),
-            ("Will S&P 500 close up more than 1% today?",      0.20, 0.80, 3.0,  0.88,  1.0, 80000,  22000),
-            ("Will Trump sign an executive order today?",       0.42, 0.58, 8.0,  0.67,  1.0, 25000,   8000),
-            ("Will ETH reach $3,500 by end of day?",           0.15, 0.85, 5.0,  0.79,  1.0, 55000,  18000),
-            ("Will there be a Fed press conference today?",     0.31, 0.69, 7.5,  0.69,  1.0, 18000,   6000),
-            ("Will oil price exceed $75 per barrel today?",    0.44, 0.56, 10.0, 0.58,  1.0, 32000,  11000),
-        ]
-        return [
-            Market(
-                id=f"demo_{i+1}",
-                question=q,
-                yes_price=yes, no_price=no,
-                volume=vol, liquidity=liq,
-                end_date=(now + timedelta(hours=hrs)).isoformat(),
-                hours_remaining=hrs,
-                elapsed_fraction=ef,
-                window_days=wd,
-                slug="",
-                volume_to_liquidity=round(vol / liq, 2),
-            )
-            for i, (q, yes, no, hrs, ef, wd, vol, liq) in enumerate(rows)
-        ]
 
 
 # ── Timing edge engine ───────────────────────────────────────────────────────────
@@ -301,10 +275,10 @@ class TimingEdgeEngine:
 
 # ── Pipeline ─────────────────────────────────────────────────────────────────────
 def run_pipeline(min_hours=WINDOW_MIN_HRS, max_hours=WINDOW_MAX_HRS, min_gap=MIN_GAP_PP):
-    client  = PolymarketClient()
-    engine  = TimingEdgeEngine(min_gap=min_gap)
-    markets = client.fetch_markets(min_hours=min_hours, max_hours=max_hours)
-    flags   = engine.score(markets)
+    client            = PolymarketClient()
+    engine            = TimingEdgeEngine(min_gap=min_gap)
+    markets, api_status = client.fetch_markets(min_hours=min_hours, max_hours=max_hours)
+    flags             = engine.score(markets)
 
     high  = sum(1 for f in flags if f.conviction == "high")
     med   = sum(1 for f in flags if f.conviction == "medium")
@@ -313,6 +287,7 @@ def run_pipeline(min_hours=WINDOW_MIN_HRS, max_hours=WINDOW_MAX_HRS, min_gap=MIN
 
     return {
         "run_at":          datetime.now(timezone.utc).isoformat(),
+        "api_status":      api_status,
         "markets_scanned": len(markets),
         "config": {
             "window":    f"{min_hours}–{max_hours}h",

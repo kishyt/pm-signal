@@ -87,7 +87,7 @@ class PolymarketClient:
                         category=m.get("category", ""),
                         tags=[t.get("label", "") for t in m.get("tags", [])],
                         active=True,
-                        slug=m.get("slug", ""),
+                        slug=((m.get("events") or [{}])[0].get("slug") or m.get("slug", "")),
                     ))
                 except Exception:
                     continue

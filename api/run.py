@@ -204,7 +204,7 @@ class PolymarketClient:
                 hours_remaining=hrs,
                 elapsed_fraction=ef,
                 window_days=wd,
-                slug=q.lower().replace(" ", "-").replace("?", "")[:50],
+                slug="",
                 volume_to_liquidity=round(vol / liq, 2),
             )
             for i, (q, yes, no, hrs, ef, wd, vol, liq) in enumerate(rows)
